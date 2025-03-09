@@ -1,0 +1,44 @@
+import numpy as np
+import rasterio
+from scipy.ndimage import maximum_filter
+import matplotlib.pyplot as plt
+
+# Load the DEM data
+tif_path = "your_file.tif"
+with rasterio.open(tif_path) as dataset:
+    elevation = dataset.read(1)
+
+# Normalize the elevation (optional but helpful for NN training)
+elevation_norm = (elevation - elevation.min()) / (elevation.max() - elevation.min())
+
+# Compute a local maximum mask using a maximum filter with a 3x3 window
+window_size = 3
+local_max = maximum_filter(elevation_norm, size=window_size)
+peaks_mask = (elevation_norm == local_max)
+
+# Create coordinate grids
+rows, cols = elevation_norm.shape
+Y, X = np.indices((rows, cols))
+
+# Flatten arrays so each row corresponds to one pixel/coordinate
+X_flat = X.flatten()
+Y_flat = Y.flatten()
+elevation_flat = elevation_norm.flatten()
+peak_flag_flat = peaks_mask.flatten().astype(np.uint8)  # 1 if peak, 0 otherwise
+
+# Combine into one array with columns [x, y, elevation, is_peak]
+data = np.column_stack((X_flat, Y_flat, elevation_flat, peak_flag_flat))
+
+# Optional: Visualize some results
+plt.figure(figsize=(10, 6))
+plt.imshow(elevation_norm, cmap="terrain", origin="upper")
+plt.scatter(X_flat[peak_flag_flat==1], Y_flat[peak_flag_flat==1], 
+            color='red', s=1, label='Detected Peaks')
+plt.legend()
+plt.title("Detected Local Maxima on DEM")
+plt.xlabel("X Coordinate")
+plt.ylabel("Y Coordinate")
+plt.show()
+
+# Save the dataset as a .npy file for later use
+np.save('dem_tabular_data.npy', data)
